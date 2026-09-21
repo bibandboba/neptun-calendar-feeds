@@ -1,0 +1,43 @@
+name: Publish Neptun calendar feeds
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "7,22,37,52 * * * *"
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Check out feed filter
+        uses: actions/checkout@v4
+
+      - name: Fetch and split Neptun feed
+        env:
+          NEPTUN_ICS_URL: ${{ secrets.NEPTUN_ICS_URL }}
+        run: python3 scripts/update_feeds.py
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload calendar feeds
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: public
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

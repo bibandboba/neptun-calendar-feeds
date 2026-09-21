@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import re
+import shutil
 import ssl
 import urllib.request
 from pathlib import Path
@@ -12,6 +13,7 @@ from pathlib import Path
 CODE_RE = re.compile(r"\(\s*-\s*[EG]\d+\s*\)", re.IGNORECASE)
 LECTURE_RE = re.compile(r"\(\s*-\s*E\d+\s*\)", re.IGNORECASE)
 SEMINAR_RE = re.compile(r"\(\s*-\s*G\d+\s*\)", re.IGNORECASE)
+FEED_TOKEN_RE = re.compile(r"[A-Za-z0-9_-]{32,}")
 
 
 def unfold(lines: list[str]) -> list[str]:
@@ -90,10 +92,23 @@ def fetch_source() -> str:
     return body
 
 
+def get_feed_token() -> str:
+    token = os.environ.get("FEED_TOKEN", "").strip()
+    if not FEED_TOKEN_RE.fullmatch(token):
+        raise RuntimeError("FEED_TOKEN must be a high-entropy URL-safe token")
+    return token
+
+
 def main() -> None:
     source = fetch_source()
+    token = get_feed_token()
     public = Path("public")
+    # Never leave an older unprotected build in the Pages artifact.
+    if public.exists():
+        shutil.rmtree(public)
     public.mkdir(parents=True, exist_ok=True)
+    feed_root = public / "f" / token
+    feed_root.mkdir(parents=True, exist_ok=True)
 
     specs = {
         "lecture": ("lectures.ics", "Neptun - Lectures"),
@@ -104,16 +119,14 @@ def main() -> None:
     total = 0
     for kind, (filename, name) in specs.items():
         filtered, count = filter_calendar(source, kind, name)
-        (public / filename).write_text(filtered, encoding="utf-8", newline="")
+        (feed_root / filename).write_text(filtered, encoding="utf-8", newline="")
         print(f"{filename}: {count} events")
         total += count
 
-    # A simple landing page makes accidental browser visits understandable.
+    # Do not expose feed URLs or directory listings from the public landing page.
     (public / "index.html").write_text(
-        "<!doctype html><meta charset=\"utf-8\"><title>Neptun calendar feeds</title>"
-        "<p>Calendar feeds: <a href=\"lectures.ics\">lectures</a>, "
-        "<a href=\"seminars.ics\">seminars</a>, "
-        "<a href=\"other.ics\">other events</a>.</p>\n",
+        "<!doctype html><meta charset=\"utf-8\"><title>Calendar feeds</title>"
+        "<p>Calendar feed service.</p>\n",
         encoding="utf-8",
     )
     print(f"total published events: {total}")

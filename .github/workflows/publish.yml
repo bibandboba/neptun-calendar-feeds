@@ -28,6 +28,7 @@ jobs:
       - name: Fetch and split Neptun feed
         env:
           NEPTUN_ICS_URL: ${{ secrets.NEPTUN_ICS_URL }}
+          FEED_TOKEN: ${{ secrets.FEED_TOKEN }}
         run: python3 scripts/update_feeds.py
 
       - name: Configure GitHub Pages
